@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111318">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<title>Change It Player</title>
+<style>
+:root{--bg:#111318;--card:#1c1f27;--ink:#f2f3f5;--mute:#9aa0ab;--accent:#ffb020;--ok:#2ecc71;--bad:#ff5c5c}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans Bengali",sans-serif;-webkit-tap-highlight-color:transparent}
+#setup{max-width:520px;margin:0 auto;padding:24px 16px 40px}
+h1{font-size:26px;margin-bottom:4px}
+.lead{color:var(--mute);margin-bottom:20px;line-height:1.5}
+.card{background:var(--card);border-radius:16px;padding:16px;margin-bottom:14px}
+.card h2{font-size:17px;margin-bottom:10px}
+button{font:inherit;border:0;border-radius:12px;cursor:pointer}
+.big{width:100%;padding:18px;font-size:20px;font-weight:700;background:var(--accent);color:#1a1200}
+.big.sec{background:#2b2f3a;color:var(--ink);font-size:17px;font-weight:600;margin-top:10px}
+.big:disabled{opacity:.4}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid #2b2f3a}
+.row:first-of-type{border-top:0}
+.row small{display:block;color:var(--mute);font-size:13px;margin-top:2px}
+input[type=checkbox]{width:26px;height:26px;accent-color:var(--accent)}
+select,input[type=text]{font:inherit;background:#2b2f3a;color:var(--ink);border:0;border-radius:10px;padding:10px;width:100%}
+#count{color:var(--accent);font-weight:700}
+.note{font-size:14px;color:var(--mute);line-height:1.5}
+#voiceState{font-size:14px;margin-top:8px;line-height:1.5}
+#player{position:fixed;inset:0;background:#000;display:none}
+#player.on{display:block}
+video{width:100%;height:100%;object-fit:contain;background:#000}
+#next{position:absolute;right:14px;bottom:50%;transform:translateY(50%);width:84px;height:84px;border-radius:50%;background:rgba(255,255,255,.18);color:#fff;font-size:38px;backdrop-filter:blur(4px)}
+#mic{position:absolute;left:14px;top:14px;padding:6px 12px;border-radius:20px;background:rgba(0,0,0,.55);font-size:14px;color:#fff;display:flex;gap:6px;align-items:center}
+#mic i{width:10px;height:10px;border-radius:50%;background:var(--mute)}
+#mic.live i{background:var(--ok);animation:p 1.4s infinite}
+#mic.err i{background:var(--bad)}
+@keyframes p{50%{opacity:.3}}
+#exit{position:absolute;right:14px;top:14px;width:52px;height:52px;border-radius:50%;background:rgba(0,0,0,.45);color:#fff;font-size:22px}
+#exitRing{position:absolute;right:14px;top:72px;font-size:12px;color:#fff;background:rgba(0,0,0,.55);padding:4px 8px;border-radius:8px;display:none}
+#flash{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:64px;font-weight:800;color:#fff;text-shadow:0 2px 20px #000;opacity:0;pointer-events:none;transition:opacity .25s}
+#flash.show{opacity:1}
+#title{position:absolute;left:0;right:0;bottom:14px;text-align:center;color:#fff;font-size:13px;opacity:.6;padding:0 100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+</style>
+</head>
+<body>
+<main id="setup">
+  <h1>Change It Player</h1>
+  <p class="lead">ফোনের ভিডিওগুলো একটার পর একটা পুরোটা চলবে। মেয়ে <b>"change it"</b> বললে, অথবা ⏭ চাপলে, পরের ভিডিও চলে আসবে।</p>
+
+  <div class="card">
+    <h2>১. ভিডিও বাছাই করুন</h2>
+    <p class="note">ফাইল খোলার পর ভিডিওর ফোল্ডারে গিয়ে একটা ভিডিও লম্বা চাপ দিন, তারপর ⋮ মেনু থেকে "Select all" করুন।</p>
+    <input id="files" type="file" accept="video/*" multiple hidden>
+    <button class="big sec" id="pick">📁 ভিডিও বাছাই করুন</button>
+    <p class="note" style="margin-top:10px">বাছাই করা হয়েছে: <span id="count">০টি</span> ভিডিও</p>
+  </div>
+
+  <div class="card">
+    <h2>২. সেটিংস</h2>
+    <label class="row"><span>এলোমেলো ক্রমে চালানো<small>প্রতিবার আলাদা ক্রম</small></span><input type="checkbox" id="shuffle" checked></label>
+    <label class="row"><span>ভয়েস কমান্ড<small>"change it" বললে পরের ভিডিও</small></span><input type="checkbox" id="voice" checked></label>
+    <label class="row"><span>ভাষা</span><select id="lang" style="width:auto"><option value="en-US">English</option><option value="bn-BD">বাংলা</option></select></label>
+    <div class="row" style="display:block"><span>ট্রিগার শব্দ (কমা দিয়ে আলাদা)</span><input type="text" id="words" style="margin-top:8px"></div>
+    <div id="voiceState" class="note"></div>
+    <button class="big sec" id="check">🔍 অফলাইন ভয়েস চেক করুন</button>
+    <button class="big sec" id="offline" hidden>⬇️ অফলাইন ভয়েস ডাউনলোড করুন</button>
+    <button class="big sec" id="test">🎤 ভয়েস পরীক্ষা করুন</button>
+  </div>
+
+  <button class="big" id="start" disabled>▶ চালু করুন</button>
+  <p class="note" style="margin-top:14px">বের হতে: ভিডিও চলার সময় ডানের ওপরের ✕ বোতামটা <b>২ সেকেন্ড চেপে</b> ধরে রাখুন। মেয়ে যাতে অ্যাপ থেকে বের হতে না পারে, সেজন্য Android-এর "App pinning" চালু করতে পারেন।</p>
+</main>
+
+<section id="player">
+  <video id="v" playsinline></video>
+  <div id="mic"><i></i><span id="micTxt">ভয়েস বন্ধ</span></div>
+  <button id="exit" aria-label="বের হন">✕</button>
+  <div id="exitRing">চেপে ধরে রাখুন…</div>
+  <button id="next" aria-label="পরের ভিডিও">⏭</button>
+  <div id="flash">⏭</div>
+  <div id="title"></div>
+</section>
+
+<script>
+const $=id=>document.getElementById(id);
+const store={get(k,d){try{const v=localStorage.getItem('cip_'+k);return v===null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem('cip_'+k,JSON.stringify(v))}catch(e){}}};
+const DEFAULT_WORDS={'en-US':'change it, change, next, skip, another one','bn-BD':'চেঞ্জ, পরের, আরেকটা, বদলাও'};
+const bnNum=n=>String(n).replace(/\d/g,d=>'০১২৩৪৫৬৭৮৯'[d]);
+
+let files=[],order=[],idx=0,url=null,wake=null,lastSkip=0;
+let rec=null,listening=false,recRestart=null,local=store.get('local',false);
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+
+// ---- settings ----
+$('shuffle').checked=store.get('shuffle',true);
+$('voice').checked=store.get('voice',true);
+$('lang').value=store.get('lang','en-US');
+function loadWords(){$('words').value=store.get('words_'+$('lang').value,DEFAULT_WORDS[$('lang').value])}
+loadWords();
+$('shuffle').onchange=()=>store.set('shuffle',$('shuffle').checked);
+$('voice').onchange=()=>store.set('voice',$('voice').checked);
+$('lang').onchange=()=>{store.set('lang',$('lang').value);loadWords();local=false;store.set('local',false);showState()};
+$('words').onchange=()=>store.set('words_'+$('lang').value,$('words').value);
+function triggers(){return $('words').value.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean)}
+
+// ---- files ----
+$('pick').onclick=()=>$('files').click();
+$('files').onchange=e=>{
+  files=[...e.target.files].filter(f=>f.type.startsWith('video/')||/\.(mp4|webm|mkv|mov|3gp|m4v)$/i.test(f.name));
+  $('count').textContent=bnNum(files.length)+'টি';
+  $('start').disabled=!files.length;
+};
+
+// ---- player ----
+function makeOrder(){
+  order=files.map((_,i)=>i);
+  if($('shuffle').checked){for(let i=order.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[order[i],order[j]]=[order[j],order[i]]}}
+}
+function play(i){
+  if(!files.length)return;
+  if(i>=order.length){makeOrder();i=0}
+  idx=i;
+  const f=files[order[idx]];
+  if(url)URL.revokeObjectURL(url);
+  url=URL.createObjectURL(f);
+  const v=$('v');v.src=url;v.currentTime=0;
+  v.play().catch(()=>{});
+  $('title').textContent=f.name.replace(/\.[^.]+$/,'');
+}
+function next(fromVoice){
+  const now=Date.now();
+  if(now-lastSkip<1500)return; // ignore double triggers
+  lastSkip=now;
+  const fl=$('flash');fl.textContent=fromVoice?'🎤 ⏭':'⏭';fl.classList.add('show');setTimeout(()=>fl.classList.remove('show'),700);
+  play(idx+1);
+}
+$('v').onended=()=>play(idx+1);
+$('v').onerror=()=>setTimeout(()=>play(idx+1),500);
+$('next').onclick=()=>next(false);
+
+async function keepAwake(){try{if('wakeLock' in navigator)wake=await navigator.wakeLock.request('screen')}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&$('player').classList.contains('on')){keepAwake();if($('voice').checked)startListening()}});
+
+$('start').onclick=async()=>{
+  makeOrder();
+  $('setup').style.display='none';$('player').classList.add('on');
+  try{await document.documentElement.requestFullscreen({navigationUI:'hide'})}catch(e){}
+  try{await screen.orientation.lock('landscape')}catch(e){}
+  keepAwake();
+  play(0);
+  if($('voice').checked)startListening();else micUI('off','ভয়েস বন্ধ');
+};
+
+// exit = long press 2s
+let holdT=null;
+function holdStart(e){e.preventDefault();$('exitRing').style.display='block';holdT=setTimeout(exitPlayer,2000)}
+function holdEnd(){clearTimeout(holdT);$('exitRing').style.display='none'}
+['pointerdown'].forEach(ev=>$('exit').addEventListener(ev,holdStart));
+['pointerup','pointerleave','pointercancel'].forEach(ev=>$('exit').addEventListener(ev,holdEnd));
+function exitPlayer(){
+  holdEnd();stopListening();
+  const v=$('v');v.pause();v.removeAttribute('src');v.load();
+  if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
+  try{wake&&wake.release()}catch(e){}
+  $('player').classList.remove('on');$('setup').style.display='';
+}
+
+// ---- voice ----
+function micUI(state,txt){const m=$('mic');m.className=state==='live'?'live':state==='err'?'err':'';$('micTxt').textContent=txt}
+function heard(t){
+  t=t.toLowerCase().replace(/[.,!?।]/g,' ');
+  return triggers().some(w=>t.includes(w));
+}
+function startListening(){
+  if(!SR){micUI('err','এই ব্রাউজারে ভয়েস নেই');return}
+  listening=true;
+  if(rec)return;
+  rec=new SR();
+  rec.lang=$('lang').value;rec.continuous=true;rec.interimResults=true;rec.maxAlternatives=3;
+  if(local){try{rec.processLocally=true}catch(e){}}
+  rec.onstart=()=>micUI('live',local?'শুনছে (অফলাইন)':'শুনছে');
+  rec.onresult=e=>{
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      for(let j=0;j<e.results[i].length;j++){
+        if(heard(e.results[i][j].transcript)){next(true);try{rec.abort()}catch(_){}return}
+      }
+    }
+  };
+  rec.onerror=e=>{
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'){listening=false;micUI('err','মাইকের অনুমতি নেই')}
+    else if(e.error==='network'){micUI('err','ইন্টারনেট ছাড়া ভয়েস চলছে না, ⏭ চাপুন')}
+  };
+  rec.onend=()=>{rec=null;if(listening){clearTimeout(recRestart);recRestart=setTimeout(startListening,250)}};
+  try{rec.start()}catch(e){rec=null}
+}
+function stopListening(){listening=false;clearTimeout(recRestart);if(rec){try{rec.abort()}catch(e){}rec=null}micUI('off','ভয়েস বন্ধ')}
+
+// on-device (offline) speech, where Chrome supports it
+function showState(){
+  $('voiceState').textContent=!SR?'⚠️ এই ব্রাউজারে ভয়েস কমান্ড নেই। Chrome ব্যবহার করুন।':local?'✅ অফলাইন ভয়েস প্রস্তুত।':'ইন্টারনেট ছাড়া ভয়েস চলবে কি না জানতে "অফলাইন ভয়েস চেক করুন" চাপুন।';
+}
+async function checkOffline(){
+  const st=$('voiceState');local=false;store.set('local',false);$('offline').hidden=true;
+  if(!SR){st.textContent='⚠️ এই ব্রাউজারে ভয়েস কমান্ড নেই। Chrome ব্যবহার করুন।';return}
+  if(typeof SR.available!=='function'){st.textContent='ভয়েস চালু আছে। অফলাইনে কাজ করে কি না, ইন্টারনেট বন্ধ করে "ভয়েস পরীক্ষা" দিয়ে দেখে নিন।';return}
+  try{
+    const a=await SR.available({langs:[$('lang').value],processLocally:true});
+    if(a==='available'){local=true;store.set('local',true);st.textContent='✅ অফলাইন ভয়েস প্রস্তুত, ইন্টারনেট ছাড়াই কাজ করবে।'}
+    else if(a==='downloadable'||a==='downloading'){st.textContent='অফলাইন ভয়েসের জন্য একবার ডাউনলোড করতে হবে (ইন্টারনেট লাগবে)।';$('offline').hidden=false}
+    else st.textContent='এই ফোনে এই ভাষার অফলাইন ভয়েস নেই। ইন্টারনেট থাকলে ভয়েস চলবে, না থাকলে ⏭ চাপুন।';
+  }catch(e){st.textContent='ভয়েস চালু আছে।'}
+}
+$('offline').onclick=async()=>{
+  $('voiceState').textContent='ডাউনলোড হচ্ছে…';
+  try{const ok=await SR.install({langs:[$('lang').value],processLocally:true});if(!ok)$('voiceState').textContent='ডাউনলোড হয়নি, আবার চেষ্টা করুন।'}catch(e){$('voiceState').textContent='ডাউনলোড হয়নি।'}
+  setTimeout(checkOffline,800);
+};
+$('test').onclick=()=>{
+  if(!SR){alert('এই ব্রাউজারে ভয়েস নেই');return}
+  const r=new SR();r.lang=$('lang').value;r.interimResults=false;if(local){try{r.processLocally=true}catch(e){}}
+  $('voiceState').textContent='🎤 এখন "change it" বলুন…';
+  r.onresult=e=>{const t=e.results[0][0].transcript;$('voiceState').textContent=(heard(t)?'✅ কাজ করছে! শুনেছে: ':'শুনেছে, কিন্তু ট্রিগার শব্দ মেলেনি: ')+'"'+t+'"'};
+  r.onerror=e=>{$('voiceState').textContent=e.error==='network'?'❌ ইন্টারনেট ছাড়া কাজ করেনি। অফলাইনে ⏭ বোতাম ব্যবহার করুন।':'❌ সমস্যা: '+e.error};
+  try{r.start()}catch(e){}
+};
+$('check').onclick=checkOffline;
+showState();
+
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
